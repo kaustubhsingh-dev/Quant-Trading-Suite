@@ -1,0 +1,19 @@
+# SECURITY: Never push these
+.env
+*.bat
+run_router.bat
+
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Data & Logs (Generated locally)
+data/
+data_store/
+logs/
+state/
+*.h5
+*.parquet
+*.csv
+*.zip

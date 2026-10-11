@@ -1,0 +1,77 @@
+"""delta_latency_check.py — Empirical network latency profiler for Delta Exchange India.
+
+Usage:
+    python delta_latency_check.py
+"""
+
+import time
+import requests
+import websocket
+import statistics
+import numpy as np
+
+# Delta Exchange India API Endpoints
+# Use /v2/tickers — a public endpoint that does NOT require authentication.
+REST_URL = "https://api.india.delta.exchange/v2/tickers"
+WS_STREAM_URL = "wss://socket.india.delta.exchange"
+
+def measure_rest_latency(n=15):
+    print(f"\n[1/2] Measuring Delta Exchange India REST RTT ({n} iterations)...")
+    rtts = []
+    
+    for i in range(n):
+        try:
+            start = time.perf_counter()
+            # The /v2/tickers endpoint is public and returns all market tickers.
+            response = requests.get(REST_URL, timeout=5)
+            end = time.perf_counter()
+            
+            if response.status_code == 200:
+                rtt_ms = (end - start) * 1000.0
+                rtts.append(rtt_ms)
+                print(f"  Iteration {i+1:02d}: {rtt_ms:>6.2f} ms")
+            else:
+                print(f"  Iteration {i+1:02d}: HTTP {response.status_code}")
+        except Exception as e:
+            print(f"  Iteration {i+1:02d}: FAILED ({e})")
+        
+        time.sleep(0.5) # Prevent rate-limiting
+        
+    if not rtts:
+        print("  REST latency test failed completely.")
+        return None
+        
+    print(f"  → Min:  {min(rtts):.2f} ms")
+    print(f"  → Mean: {statistics.mean(rtts):.2f} ms")
+    print(f"  → P95:  {np.percentile(rtts, 95):.2f} ms")
+    print(f"  → Max:  {max(rtts):.2f} ms")
+    return rtts
+
+def measure_ws_latency():
+    print(f"\n[2/2] Measuring WebSocket Connection Handshake Latency...")
+    try:
+        start = time.perf_counter()
+        # The WebSocket handshake includes TCP, TLS, and HTTP upgrade.
+        ws = websocket.create_connection(WS_STREAM_URL, timeout=5)
+        end = time.perf_counter()
+        
+        handshake_ms = (end - start) * 1000.0
+        print(f"  → WS Handshake RTT: {handshake_ms:.2f} ms")
+        ws.close()
+        return handshake_ms
+    except Exception as e:
+        print(f"  → WebSocket connection failed: {e}")
+        return None
+
+if __name__ == "__main__":
+    print("=== DELTA EXCHANGE INDIA NETWORK PROFILER ===")
+    rest_rtts = measure_rest_latency(n=15)
+    ws_rtt = measure_ws_latency()
+    
+    if rest_rtts:
+        mean_rtt = statistics.mean(rest_rtts)
+        one_way_latency = mean_rtt / 2.0
+        print("\n=== SUMMARY FOR SIMULATOR CONFIG ===")
+        print(f"  Empirical Round-Trip Time (RTT): {mean_rtt:.2f} ms")
+        print(f"  Estimated One-Way Cancel Latency: {one_way_latency:.2f} ms")
+        print("======================================")
